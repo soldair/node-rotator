@@ -95,7 +95,9 @@ module.exports = function(config){
         em.emit('rotate-error',err,p);
       });
 
-      process.nextTick(function(){
+      fs.stat(p,function(err,stat){
+        // update stat for correct size value
+        if(!err) data.stat = stat;
         rs.resume();
       });
 
