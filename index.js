@@ -117,7 +117,7 @@ module.exports = function(config){
 
     this.getRotateId(p,function(err,id) {
       if(err) return cb(err);
-      cb(null, dir+path.sep+em.formatTime(new Date())+(id?'-'+id:'')+'_'+name);
+      cb(null, path.join(dir,em.formatTime(new Date())+(id?'-'+id:'')+'_'+name));
     }); 
   };
 
