@@ -4,7 +4,7 @@
   "description": "Emit rotate events for log files based on interval. Rotate event handlers are called \"rotater-tots\" or just tots. Tots get passed a readable stream the log file path and the data passed in when the log was asociated. ",
   "main": "index.js",
   "scripts": {
-    "test": "tap ./test/*.js"
+    "test": "jshint --config .lint.json ./index.js && tap ./test/*.js"
   },
   "repository": "",
   "keywords": [
@@ -13,7 +13,8 @@
     "tater-tots"
   ],
   "devDependencies":{
-    "tap":"*"
+    "tap":"*",
+    "jshint":"*"
   },
   "author": "Ryan Day",
   "license": "BSD"
