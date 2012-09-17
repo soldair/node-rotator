@@ -16,13 +16,14 @@ test('can make rotater',function(t){
       t.ok(data.rotateName,'rotate name should be set');
     });
 
+    var rotates = 0;
     tot.on('rotate',function(){
-      console.log('rotate event!');
+      rotates++;
     });
 
     tot.on('rotate-error',function(err){
-      console.log('rotate error =(');
-      console.log(err.message,err.stack,err);
+      //console.log('rotate error =(');
+      //console.log(err.message,err.stack,err);
       t.fail('should not get rotate error');
       tot.stop();
       t.end();
@@ -30,6 +31,8 @@ test('can make rotater',function(t){
 
     tot.on('rotated',function(){
       console.log('rotated the log');
+      console.log(arguments);
+      t.ok(rotates,'rotate event happened');
       tot.stop();
       t.end();
     })

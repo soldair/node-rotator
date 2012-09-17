@@ -40,7 +40,7 @@ rotator(config Object)
       - rotated files are by default gzipped
     - pollInterval
       - how often to check if any logs need to be rotated
- 
+
   - returns an EventEmitter
 
 tot EventEmitter
@@ -50,21 +50,24 @@ tot EventEmitter
     - remove a path from the rotate list
   - formatTime(date)
     - creates day timestamp from UTC YMD overload this function to change the format.
-  - rotate(p,cb)
-    - p the file path you want to rotate
+  - rotate(path,cb)
+    - path the file path you want to rotate
     - cb callback
+  - rotateAfterClose(path,stream)
+    - the file path that must not be rotated until stream close
+    - the stream that must close
 
-  Events 
-    - rotate(rs ReadabeStream,p file path, data)
-    - rotated(p file path,data)
-    - rotate-error(err Error, p file path, data)
-    - rotate-empty(p path,data);
+Events 
+  - rotate(rs ReadabeStream,p file path, data)
+  - rotated(p file path,data)
+  - rotate-error(err Error, p file path, data)
+  - rotate-empty(p path,data);
 
-  Data Object
-    data obejcts are passed to events. this is the data associated with each file.
-    - data.stat
-    - data.toRotate
-    - data.rotating
+Data Object
+data objects are passed to events. this is the data associated with each file.
+  - data.stat
+  - data.toRotate
+  - data.rotating
 
 ## victory
 

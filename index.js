@@ -114,10 +114,36 @@ module.exports = function(config){
         em.emit('rotate',rs,path,data);
 
         process.nextTick(function(){
-          rs.resume();
+          if(em.pendingClose[p]) {
+            em.pendingClose[p].done = function(){
+              rs.resume();
+            };
+          } else {
+            rs.resume();
+          }
         });
       });
 
+    });
+  };
+
+  em.pendingClose = {};
+
+  em.rotateAfterClose = function(file,stream){
+    var z = this;
+    if(!z.pendingClose[file]) z.pendingClose[file] = {count:0,file:file,start:Date.now()};
+    z.pendingClose[file]++;
+
+    stream.on('close',function(){
+      z.pendingClose[file].count--;
+      if(!this.pendingClose[file].count){
+        //
+        if(this.pendingClose[file].done){
+          var data = this.pendingClose[file];
+          delete this.pendingClose[file];
+          data.done();
+        }
+      }
     });
   };
 
@@ -186,8 +212,23 @@ module.exports = function(config){
     rs.pipe(ws);
   });
 
+  // make sure pending close calls cant stack up
+  em.cleanUp = function(){
+    var z = this;
+    Object.keys(z.pendingClose).forEach(function(file){
+      //
+      var time = Date.now()-z.pendingClose[file].start;
+      // 5 minute timeout waiting for close 
+      if(time > 1000*60*5) {
+        delete z.pendingClose[file];
+        z.emit('rotate-error',new Error('pending close timed out after 5 minutes'),file);
+      }
+    });
+  };
+
   interval = setInterval(function(){
     em.rotate();
+    em.cleanUp();
   },config.pollInterval);
 
   return em;
