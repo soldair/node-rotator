@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jshint --config .lint.json ./index.js && tap ./test/*.js"
   },
-  "repository": "",
+  "repository": "git://github.com/soldair/node-rotator.git",
   "keywords": [
     "logs",
     "rotate",
