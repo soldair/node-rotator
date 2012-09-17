@@ -1,6 +1,7 @@
 var EventEmitter = require('events').EventEmitter
 ,fs = require('fs')
 ,path = require('path')
+,zlib = require('zlib')
 ;
 
 
@@ -11,6 +12,8 @@ module.exports = function(config){
   config.interval = config.interval||1000*60*60*24;
   // how often to check for rotation
   config.pollInterval = config.pollInterval||60000;
+  // default to gzipping output files.
+  if(typeof config.gzip == 'undefined') config.gzip = true;
 
   var em = new EventEmitter()
   ,paused = false
@@ -18,27 +21,34 @@ module.exports = function(config){
   ;
 
   em.logs = {};
-  em.addLog = function(p,data,cb){
-    if(data.call) {
+  em.addFile = function(p,data,cb){
+    if(data && data.call) {
       cb = data;
       data = {};
     }
     
     fs.stat(p,function(err,stat){
+
       if(err) return cb(err);
+
       em.getRotateName(p,function(err,name){
         if(err) return cb(err);
 
-        em.logs[path] = {
+        em.logs[p] = {
           stat:stat,
           data:data,
           rotateName:name
         };
-
-        cb(null,em.logs[path]);
+        cb(null,em.logs[p]);
 
       });
     });
+  };
+
+  em.removeFile = function(p){
+    if(em.logs[p]) {
+      delete em.logs[p];
+    }
   };
 
   em.pause = function(){
@@ -56,9 +66,9 @@ module.exports = function(config){
 
   em.rotate = function(){
     if(paused) return;
-    Object.keys(em.logs).forEach(function(p){
+    Object.keys(this.logs).forEach(function(p){
       var data = em.logs[p];
-      
+
       if(data && data.rotating) return;
       
       //
@@ -74,7 +84,7 @@ module.exports = function(config){
       var rs = fs.createReadStream(p);
 
       rs.pause();
-      rs.on('end',function(){
+      rs.on('close',function(){
         fs.unlink(p,function(){
           // create the file.
           fs.open(p,'w',parseInt('0655',8),function(err,fd){
@@ -82,7 +92,7 @@ module.exports = function(config){
             
             delete em.logs[p];
 
-            em.addLog(p,data.data,function(err,data){
+            em.addFile(p,data.data,function(err,data){
               if(err) return em.emit('rotate-error',err,p);
 
               em.emit('rotated',p,data);             
@@ -98,10 +108,12 @@ module.exports = function(config){
       fs.stat(p,function(err,stat){
         // update stat for correct size value
         if(!err) data.stat = stat;
-        rs.resume();
-      });
+        em.emit('rotate',rs,path,data);
 
-      em.emit('rotate',rs,path,data);
+        process.nextTick(function(){
+          rs.resume();
+        });
+      });
 
     });
   };
@@ -119,34 +131,53 @@ module.exports = function(config){
 
     this.getRotateId(p,function(err,id) {
       if(err) return cb(err);
-      cb(null, path.join(dir,em.formatTime(new Date())+(id?'-'+id:'')+'_'+name));
+      var toRotate = path.join(dir,em.formatTime(new Date())+(id?'-'+id:'')+'_'+name);
+      cb(null,toRotate);
     }); 
   };
 
   em.getRotateId = function(p,cb){
+    var base = path.basename(p),match;
     fs.readdir(path.dirname(p),function(err,data){
       if(err) return cb(err,0);
 
       var id = 0;
       data.forEach(function(f){
-        if(f.indexOf(p) !== -1){
+
+        var timestring = em.formatTime(new Date());
+        if(~f.indexOf(base) && ~f.indexOf(timestring)){
+
           match = true;
-          last = (f.match(/([\d]+)$/)||[]).shift();
-          if(last && +last > id) {
-            id = last;
-          }
+          f = f.replace(timestring,'');
+
+          var last = +(f.substr(0,f.indexOf('_')).replace(/[^\d]+/g,''));
+          if(last && last >= id) id = last;
         }
       });
       
-      cb(null,last);
+      if(match) ++id;
+      cb(null,id);
     });
   };
 
   em.on('rotate',function(rs,p,data){
     // 
-    // default rotater-tot
+    // default rotator-tot
     //
-    rs.pipe(fs.createWriteStream(data.rotateName));
+    if(!data.stat.size) {
+      // setting ctime to now so its not checked for one more whole interval
+      data.stat.ctime = new Date();
+      em.emit('rotate-empty',p,data);
+      return;
+    }
+
+    var ws;
+    if(config.gzip) {
+      ws = zlib.createGzip().pipe(fs.createWriteStream(data.rotateName+'.gz'));
+    } else {
+      ws = fs.createWriteStream(data.rotateName);
+    }
+    rs.pipe(ws);
   });
 
   interval = setInterval(function(){
