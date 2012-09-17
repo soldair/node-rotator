@@ -175,7 +175,8 @@ module.exports = function(config){
     var alreadyGz = (data.rotateName.indexOf('.gz') == data.rotateName.length-3);
 
     if(config.gzip && !alreadyGz) {
-      ws = zlib.createGzip().pipe(fs.createWriteStream(data.rotateName+'.gz'));
+      ws = zlib.createGzip();
+      ws.pipe(fs.createWriteStream(data.rotateName+'.gz'));
     } else {
       ws = fs.createWriteStream(data.rotateName);
     }
