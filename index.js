@@ -30,7 +30,10 @@ module.exports = function(config){
     fs.stat(p,function(err,stat){
 
       if(err) return cb(err);
-
+      if(em.logs[p]){
+        em.logs[p].stat = stat;
+        return cb(null,em.logs[p]);
+      }
       em.getRotateName(p,function(err,name){
         if(err) return cb(err);
 
