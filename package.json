@@ -9,7 +9,9 @@
   "repository": "git://github.com/soldair/node-rotator.git",
   "keywords": [
     "logs",
+    "log",
     "rotate",
+    "keeping data"
     "tater-tots"
   ],
   "devDependencies":{

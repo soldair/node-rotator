@@ -149,9 +149,9 @@ module.exports = function(config){
         var tmp = p+'_'+Date.now()+''+Math.random();
         fs.rename(p,tmp,function(err) {
           // make a new file at path.
-          fs.open(p,'a+',0655,function(err,fd){
+          fs.open(p,'a+',parseInt('0655',8),function(err,fd){
             if(!err) fs.close(fd);  
-          })
+          });
 
           if(err) {
             errors.push({path:p,error:err});

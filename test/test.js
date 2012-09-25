@@ -73,8 +73,15 @@ test('can make rotater',function(t){
         })
       },done = function(){
         if(logs.length) return job();
+        var realOutput = '';
+        if(Buffer.concat) {
+          realOutput = Buffer.concat(data).toString();
+        } else {
+          data.forEach(function(b){
+            realOutput += b.toString();
+          });
+        }
 
-        var realOutput = Buffer.concat(data).toString();
         t.equals(realOutput,str,'combined rotated files should have exactly the data i wrote. no more no less');
         t.end();
 
