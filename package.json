@@ -1,7 +1,7 @@
 {
   "name": "rotator",
   "version": "0.0.4",
-  "description": "Emit rotate events and rotate files based on interval. Rotate event handlers are called \"rotater-tots\" or just tots. Tots get passed a readable stream the log file path and the data passed in when the log was asociated. ",
+  "description": "Emit rotate events and rotate files based on interval. Rotate event handlers are called \"rotater-tots\" or just tots. Tots get passed a readable stream the log file path and the data passed in when the log was asociated.",
   "main": "index.js",
   "scripts": {
     "test": "jshint --config .lint.json ./index.js && tap ./test/*.js"
