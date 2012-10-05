@@ -36,11 +36,15 @@ rotator(config Object)
   - config
     - interval
       - the rotate interval for all files on this tot defaults to 1 day
+    - size
+      - the max size of the file before  it is rotated. defauls to 5gb
     - gzip = true
       - rotated files are by default gzipped
     - pollInterval
-      - how often to check if any logs need to be rotated
-
+      - how often to check if any logs need to be rotated. defaults to 1 minute.
+    - statInterval
+      - how often to poll size. i did not want to install watchers because we should not really need to check this so often.
+    
   - returns an EventEmitter
 
 tot EventEmitter
@@ -60,6 +64,8 @@ tot EventEmitter
 Events 
   - rotate(rs ReadabeStream,p file path, data)
   - rotated(p file path,data)
+  - rotate-done
+    - all active rotates are done
   - rotate-error(err Error, p file path, data)
   - rotate-empty(p path,data);
 
