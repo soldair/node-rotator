@@ -343,7 +343,7 @@ module.exports = function(config){
 
   em.updateStats = function(cb){
     var pending = 0;
-    em.logs.forEach(function(data,file){
+    Object.keys(em.logs).forEach(function(file){
       em.updateStat(file,function(){
         pending--;
         if(!pending) cb(undefined,true);
@@ -371,7 +371,7 @@ module.exports = function(config){
           //
           // set the stat.
           //
-          if(em.logs[file]) em.logs[file].stat = stat;
+          if(em.logs[p]) em.logs[p].stat = stat;
           cb(undefined,p);
         }
       }); 
