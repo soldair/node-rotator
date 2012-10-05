@@ -59,7 +59,7 @@ test('can make rotater',function(t){
       , job = function(){
         var name = logs.shift();
         var rs = fs.createReadStream(name);
-        if(name.indexOf('.gz') !== false){
+        if(name.indexOf('.gz') != -1){
           var gunzip = require('zlib').createGunzip()
           rs.pipe(gunzip)
           gunzip.on('data',function(buf){
@@ -78,7 +78,7 @@ test('can make rotater',function(t){
 
         rs.on('end',function(){
           done() ;
-          fs.unlinkSync(name); 
+          //fs.unlinkSync(name); 
         })
       },done = function(){
         if(logs.length) return job();
