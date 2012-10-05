@@ -375,7 +375,7 @@ module.exports = function(config){
           cb(undefined,p);
         }
       }); 
-  }
+  };
 
   em._touch = function(p,cb){
       fs.open(p,'a+',parseInt('0655',8),function(err,fd){
