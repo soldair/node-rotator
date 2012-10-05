@@ -10,8 +10,16 @@ module.exports = function(config){
   config = config||{};
   // how often log files should be rotated
   config.interval = config.interval||1000*60*60*24;
+
+  // how big log files can be before they get rotated.
+  config.size = config.size||1024*1024*1024*5;// 5 gb
+
   // how often to check for rotation
   config.pollInterval = config.pollInterval||60000;
+
+  // how often to update size.
+  config.statInterval = config.statInterval||65000;
+
   // default to gzipping output files.
   if(typeof config.gzip == 'undefined') config.gzip = true;
 
@@ -70,43 +78,66 @@ module.exports = function(config){
     paused = false;
   };
 
-  em.stop = function(){
+
+  em.intervals = [];
+  em.clearIntervals = function(){
+    while(em.intervals.length) {
+      clearInterval(em.intervals.shift());
+    }
+  };
+
+  em.stop = function(cb){
+
+    em.clearIntervals();
     em.stopped = true;
-    clearInterval(interval);
+
+    if(em.rotating) {
+      em.once('rotate-done',function(){
+        if(cb) {
+          cb(); 
+          cb = false;
+        }  
+      });
+    } else {
+      if(cb) process.nextTick(cb);
+    }
   };
 
   em.rotating = false;
+  var rotateId = 0;
   em.rotate = function(cb){
-
-
     var z = this;
-    if(paused) {
+    if(paused || em.stopped) {
+
       process.nextTick(function(){
         cb(false,[]);// different return on paused?
       });
       return;
     }
+
     if(!z.rotating) z.rotating = [];
+
     z.rotating.push(cb);
-    if(z.rotating.length > 1) {
-      return;
-    }
+    if(z.rotating.length > 1) return;
+
+    rotateId++;
 
     var rotated = []
     , errors = []
     , jobs = 0
-    , job = function(i){
+    , job = function(i,name){
       jobs += i;
+
       process.nextTick(function(){
         if(!jobs) {
-
-
           var cbs = z.rotating;
           z.rotating = false;
+          z.emit('rotate-done');
+
           if(cbs){
             while(cbs.length){
-             cb = cbs.shift();
-             if(cb) cb(error.length?errors:null,rotated);
+              cb = cbs.shift();
+              if(cb) cb(error.length?errors:null,rotated);
             }
           }
         }
@@ -119,90 +150,74 @@ module.exports = function(config){
       if(data && data.rotating) {
         return;
       }
+
       //
       //compare time!
       //
       var ctime = data.stat.ctime
-      ,age = Date.now()-ctime.valueOf()
+      , size = data.stat.size
+      , age = Date.now()-ctime.valueOf()
       ;
 
-      if(age < config.interval) {
+      if(age < config.interval && size < config.size) {
         return;
       }
 
       em.logs[p].rotating = true;
+      //
+      // 
+      //
+      job(1,'stat');
 
-      
-      //
-      job(1);
-      //
       fs.stat(p,function(err,stat){
 
         if((err && err.code == 'ENOENT') || !stat.size) {
           //not really an error
           em.logs[p].rotating = false;
-          return job(-1);
+          return job(-1,'stat error');
         }
-        //
-        job(1);
-        //
-        var tmp = p+'_'+Date.now()+''+Math.random();
-        fs.rename(p,tmp,function(err) {
-          // make a new file at path.
-          fs.open(p,'a+',parseInt('0655',8),function(err,fd){
-            if(!err) fs.close(fd);  
-          });
 
-          if(err) {
-            errors.push({path:p,error:err});
+        data.stat = stat;
+
+        z._copyAndRecreate(p,function(err,tmp){
+          if(err){
+            em.emit('rotate-error',err,p,data.rotateName);
             //
-            job(-1);
+            // error setting this up. job is done.
             //
-            return;
+            return job(-1,'copy error');
           }
 
           var rs = fs.createReadStream(tmp);
 
           rs.pause();
+
           rs.on('close',function(){
 
-            fs.unlink(tmp,function(err){
-              if(err) {
-                errors.push({path:p,error:err});
+            delete em.logs[p];
+            em.addFile(p,data.data,function(){
+              fs.unlink(tmp,function(err){
                 //
-                job(-1);
+                // victory. file has been rotated.
                 //
-                return em.emit('rotate-error',err,p);
-              }
-              
-              delete em.logs[p];
-              em.addFile(p,data.data,function(err,data){
-                //
-                job(-1);
-                //
-                if(err) {
-                  errors.push({path:p,error:err});
-                  return em.emit('rotate-error',err,p);
-                }
-
-                rotated.push(p);
-                em.emit('rotated',p,data);             
+                job(-1,'rotate read stream close');
+                em.emit('rotated',p,data.rotateName);
               });
             });
           }); 
 
           rs.on('error',function(err){
             //
-            job(-1);
+            // damn. error rotaing file!
             //
-            errors.push({path:p,error:err});
-            em.emit('rotate-error',err,p);
+            job(-1,'rotate read stream error');
+            em.emit('rotate-error',err,p,data.rotateName);
           });
 
-          // update stat for correct size value
-          if(!err) data.stat = stat;
           em.emit('rotate',rs,p,data);
-
+          // 
+          // defer rotate handler to allow rotate handler to bind streams in rotateAfterClose
+          //
           process.nextTick(function(){
             if(em.pendingClose[p]) {
               em.pendingClose[p].done = function(){
@@ -211,17 +226,13 @@ module.exports = function(config){
             } else {
               rs.resume();
             }
-            
-            //
-            job(-1);
-            //
           });
         });
       });
     });
 
-    // there was nothing to rotate.
-    job(0);
+    // there was nothing to rotate?
+    job(0,'kick it off');
   };
 
   em.pendingClose = {};
@@ -291,12 +302,10 @@ module.exports = function(config){
   };
 
   em.on('rotate',function(rs,p,data){
-
     // 
-    // default rotator-tot
+    // default rotator/-tot
     //
     if(!data.stat.size) {
-
       // setting ctime to now so its not checked for one more whole interval
       data.stat.ctime = new Date();
       em.emit('rotate-empty',p,data);
@@ -308,12 +317,13 @@ module.exports = function(config){
 
     if(config.gzip && !alreadyGz) {
       ws = zlib.createGzip();
-      ws.pipe(fs.createWriteStream(data.rotateName+'.gz'));
+      data.rotateName += '.gz';
+      ws.pipe(fs.createWriteStream(data.rotateName));
     } else {
       ws = fs.createWriteStream(data.rotateName);
     }
-    rs.pipe(ws);
 
+    rs.pipe(ws);
   });
 
   // make sure pending close calls cant stack up
@@ -330,18 +340,80 @@ module.exports = function(config){
     });
   };
 
-  var processing = false;
-  interval = setInterval(function(){
-    if(processing) return;
-    processing = true;
+
+  em.updateStats = function(cb){
+    var pending = 0;
+    em.logs.forEach(function(data,file){
+      em.updateStat(file,function(){
+        pending--;
+        if(!pending) cb(undefined,true);
+      });
+    });
+  };
+
+  em.updateStat = function(p,cb){
+      if(!em.logs[p]) {
+        return process.nextTick(function(){
+          cb(new Error('tried to update stat of a file that is not being rotated'),p);
+        });
+      }
+      
+      fs.stat(p,function(err,stat){
+        if((err && err.code == 'ENOENT') || !stat.size){
+          em._touch(p,function(err){
+            if(err) return cb(err);
+            //
+            // now that it exists, update the stat.
+            //
+            em.updateStat(p,cb);
+          });
+        } else {
+          //
+          // set the stat.
+          //
+          if(em.logs[file]) em.logs[file].stat = stat;
+          cb(undefined,p);
+        }
+      }); 
+  }
+
+  em._touch = function(p,cb){
+      fs.open(p,'a+',parseInt('0655',8),function(err,fd){
+        if(!err) fs.close(fd);
+        cb(err,true);
+      });
+  };
+
+  em._copyAndRecreate = function(p,cb) {
+    var tmp = p+'_'+Date.now()+''+Math.random();
+    fs.rename(p,tmp,function(err) {
+      if(err) return cb(err);
+      // make a new file at path.
+      em._touch(p,function(){
+        cb(null,tmp);
+      });
+    });  
+  };
+
+  //
+  // ttl rotation
+  //
+  em.intervals.push(setInterval(function(){
     try{
       em.rotate();
       em.cleanUp();
     } catch(e) {
       console.error('log rotator error ',e);
     }
-    processing = false;
-  },config.pollInterval);
+  },config.pollInterval));
+
+  //
+  // stat size rotation.
+  //
+  em.intervals.push(setInterval(function(){
+    em.updateStats();
+  },config.statInterval));
+  
 
   return em;
 };

@@ -29,7 +29,7 @@ test('can make rotater',function(t){
   tot.on('rotate',function(rs,p,data){
     rotates++;
 
-    logs.push(data.rotateName+'.gz');
+    logs.push(data.rotateName);
 
     tot.rotateAfterClose(p,ws);
     var old = ws;
@@ -37,8 +37,12 @@ test('can make rotater',function(t){
   });
 
   tot.on('rotate-error',function(err){
+    if(!err) return;
     t.fail('should not get rotate error');
-    tot.stop();
+    tot.stop(function(){
+      console.log('tot stopped!');  
+    });
+
     t.end();
   });
 
@@ -47,20 +51,25 @@ test('can make rotater',function(t){
     if(rotates == 2) {
       logs.push('test.log');
 
-      tot.stop();
       clearInterval(interval);
       ws.end();
+
 
       var data = []
       , job = function(){
         var name = logs.shift();
         var rs = fs.createReadStream(name);
-        if(~name.indexOf('.gz')){
+        if(name.indexOf('.gz') !== false){
           var gunzip = require('zlib').createGunzip()
           rs.pipe(gunzip)
           gunzip.on('data',function(buf){
             data.push(buf);
           });
+
+          gunzip.on('error',function(){
+            console.log('cant gunzip ',name);  
+          });
+
         } else {
           rs.on('data',function(buf){
             data.push(buf);
@@ -76,7 +85,7 @@ test('can make rotater',function(t){
         var realOutput = '';
         if(Buffer.concat) {
           realOutput = Buffer.concat(data).toString();
-        } else {
+        } else {// 0.6
           data.forEach(function(b){
             realOutput += b.toString();
           });
@@ -90,7 +99,10 @@ test('can make rotater',function(t){
 
       //get all created log files
       //
-      done();
+
+      tot.stop(function(){
+        done();
+      });
     }
   });
 });
