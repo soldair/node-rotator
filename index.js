@@ -257,8 +257,10 @@ module.exports = function(config){
 
   em.formatTime = function(date){
     var month = ""+(date.getUTCMonth()+1);
+    var day = date.getUTCDate();
     if(month.length == 1) month = '0'+month;
-    return date.getUTCFullYear()+''+month+''+date.getUTCDate(); 
+    if(day.length == 1) day = '0'+dat;
+    return date.getUTCFullYear()+''+month+''+day; 
   };
 
   em.getRotateName = function(p,cb){
