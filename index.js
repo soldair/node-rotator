@@ -259,7 +259,7 @@ module.exports = function(config){
     var month = ""+(date.getUTCMonth()+1);
     var day = date.getUTCDate();
     if(month.length == 1) month = '0'+month;
-    if(day.length == 1) day = '0'+dat;
+    if(day.length == 1) day = '0'+day;
     return date.getUTCFullYear()+''+month+''+day; 
   };
 
