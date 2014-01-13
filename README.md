@@ -24,7 +24,7 @@ tot.on('rotate',function(rs,file,data){
 });
 
 tot.on('rotated',function(rs,path,data){
-  console.log(path,'was old and needed to be rotated. copied to ',path);
+  console.log(rs,'was old and needed to be rotated. copied to ',path);
   // prints "./some.log was old and needed to be rotated. copied to ./20120914_some.log"
 });
 
